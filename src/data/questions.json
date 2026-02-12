@@ -1,0 +1,79 @@
+[
+  {
+    "id": 1,
+    "type": "single_choice",
+    "questionText": "Talent Mobility helps employees ______ new opportunities to develop skills and knowledge.",
+    "options": ["Expand", "Excel", "Explore", "Retire"],
+    "correctOptionIndex": 2
+  },
+  {
+    "id": 2,
+    "type": "single_choice",
+    "questionText": "What does SMART stand for in goal setting?",
+    "options": [
+      "Specific, measurable, achievable, relevant, time bound",
+      "Structured, measured, ambitious, relevant, targeted",
+      "Specific, motivating, accountable, resourceful, time-driven"
+    ],
+    "correctOptionIndex": 0
+  },
+  {
+    "id": 3,
+    "type": "single_choice",
+    "questionText": "What percentage of learning happens on the job according to IDP analysis and approvals?",
+    "options": ["70%", "20%", "100%"],
+    "correctOptionIndex": 0
+  },
+  {
+    "id": 4,
+    "type": "single_choice",
+    "questionText": "Stage 2 of the performance and development conversation focuses on implementation and ongoing ______.",
+    "options": ["False", "Performance", "Feedback", "Manager"],
+    "correctOptionIndex": 2
+  },
+  {
+    "id": 5,
+    "type": "single_choice",
+    "questionText": "What are the two main axes used in the performance matrix?",
+    "options": [
+      "Results and behaviors/technical skills",
+      "Development/technical skills and feedback",
+      "Policies and procedures"
+    ],
+    "correctOptionIndex": 0
+  },
+  {
+    "id": 6,
+    "type": "single_choice",
+    "questionText": "What is the purpose of the development conversation?",
+    "options": [
+      "Align, identify, review, and build",
+      "Discuss, assess, correct, and finalize",
+      "Coordinate, supervise, validate, and train"
+    ],
+    "correctOptionIndex": 0
+  },
+  {
+    "id": 7,
+    "type": "single_choice",
+    "helperText": "Fill in the blanks",
+    "questionText": "Before the development conversation happens, the employee should ______, list key achievements, and ______, then think about skills or behaviors.",
+    "options": [
+      "Reflect on performance and note challenges and learnings",
+      "Gather feedback and update performance records",
+      "Prepare documentation and review recent goals"
+    ],
+    "correctOptionIndex": 0
+  },
+  {
+    "id": 8,
+    "type": "single_choice",
+    "questionText": "Which of the following is part of Continuous Feedback and Career Conversations?",
+    "options": [
+      "Simulator and virtual reality",
+      "Recognize performance",
+      "Online (self-learning)"
+    ],
+    "correctOptionIndex": 1
+  }
+]
