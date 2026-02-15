@@ -24,6 +24,11 @@ const PlayerSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    timeTakenSeconds: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     playedAt: {
       type: Date,
       default: Date.now,
@@ -36,7 +41,7 @@ const PlayerSchema = new mongoose.Schema(
 );
 
 PlayerSchema.index(
-  { correctAnswers: -1, wrongAnswers: 1, playedAt: 1 },
+  { correctAnswers: -1, wrongAnswers: 1, timeTakenSeconds: 1, playedAt: 1 },
   { name: "leaderboard_sort_index" }
 );
 

@@ -24,6 +24,7 @@ export async function POST(request) {
     const totalQuestions = Math.max(0, toInt(body?.totalQuestions, 0));
     const correctAnswers = Math.max(0, toInt(body?.correctAnswers, 0));
     const wrongAnswers = Math.max(0, toInt(body?.wrongAnswers, 0));
+    const timeTakenSeconds = Math.max(0, toInt(body?.timeTakenSeconds, 0));
 
     if (correctAnswers + wrongAnswers > totalQuestions && totalQuestions > 0) {
       return NextResponse.json(
@@ -37,6 +38,7 @@ export async function POST(request) {
       totalQuestions,
       correctAnswers,
       wrongAnswers,
+      timeTakenSeconds,
       playedAt: body?.playedAt ? new Date(body.playedAt) : undefined,
     });
 
@@ -47,6 +49,7 @@ export async function POST(request) {
         totalQuestions: player.totalQuestions,
         correctAnswers: player.correctAnswers,
         wrongAnswers: player.wrongAnswers,
+        timeTakenSeconds: player.timeTakenSeconds,
         playedAt: player.playedAt,
       },
       { status: 201 }

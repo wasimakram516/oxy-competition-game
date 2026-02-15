@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Typography } from "@mui/material";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -8,6 +8,7 @@ import confetti from "canvas-confetti";
 import questions from "@/data/questions.json";
 
 const FEEDBACK_DELAY_MS = 850;
+const TIMER_TOTAL_MS = 45_000;
 
 function shuffleQuestions(list) {
   const items = [...list];
@@ -16,6 +17,15 @@ function shuffleQuestions(list) {
     [items[i], items[j]] = [items[j], items[i]];
   }
   return items;
+}
+
+function formatSeconds(seconds) {
+  const safe = Number.isFinite(seconds) ? Math.max(0, Math.round(seconds)) : 0;
+  return `${safe}s`;
+}
+
+function getNowMs() {
+  return Date.now();
 }
 
 export default function QuestionsPage() {
@@ -29,33 +39,50 @@ export default function QuestionsPage() {
   const [leaders, setLeaders] = useState([]);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
+  const [wrongCount, setWrongCount] = useState(0);
   const [selectedOption, setSelectedOption] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [isLocked, setIsLocked] = useState(false);
   const [endSummary, setEndSummary] = useState(null);
+  const [timeLeftMs, setTimeLeftMs] = useState(TIMER_TOTAL_MS);
 
   const correctAudioRef = useRef(null);
   const wrongAudioRef = useRef(null);
   const celebrateAudioRef = useRef(null);
+  const gameStartedAtRef = useRef(0);
+  const isGameFinishedRef = useRef(false);
+  const correctCountRef = useRef(0);
+  const wrongCountRef = useRef(0);
+  const feedbackTimeoutRef = useRef(null);
 
   const currentQuestion = useMemo(
     () => randomizedQuestions[questionIndex] ?? null,
     [questionIndex, randomizedQuestions]
   );
   const totalQuestions = randomizedQuestions.length;
+  const remainingSeconds = Math.ceil(Math.max(0, timeLeftMs) / 1000);
 
   useEffect(() => {
+    gameStartedAtRef.current = getNowMs();
     correctAudioRef.current = new Audio("/correct.wav");
     wrongAudioRef.current = new Audio("/wrong.wav");
     celebrateAudioRef.current = new Audio("/celebrate.mp3");
   }, []);
 
   useEffect(() => {
+    correctCountRef.current = correctCount;
+  }, [correctCount]);
+
+  useEffect(() => {
+    wrongCountRef.current = wrongCount;
+  }, [wrongCount]);
+
+  useEffect(() => {
     let isMounted = true;
 
     async function loadLeaderboard() {
       try {
-        const response = await fetch("/api/leaderboard?onlyPerfect=true&limit=6");
+        const response = await fetch("/api/leaderboard?onlyPerfect=true&limit=50");
         const data = await response.json();
         if (isMounted) {
           setLeaders(Array.isArray(data?.leaderboard) ? data.leaderboard : []);
@@ -74,36 +101,32 @@ export default function QuestionsPage() {
     };
   }, []);
 
-  const leaderboardRows = useMemo(() => {
-    const rows = leaders.slice(0, 6).map((entry) => entry.name);
-    while (rows.length < 6) {
-      rows.push("----");
-    }
-    return rows;
-  }, [leaders]);
+  const updatePlayerRecord = useCallback(
+    async (finalCorrectCount, finalWrongCount, timeTakenSeconds) => {
+      if (!playerId) {
+        return;
+      }
 
-  async function updatePlayerRecord(finalCorrectCount) {
-    if (!playerId) {
-      return;
-    }
-
-    try {
-      await fetch(`/api/players/${playerId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          totalQuestions,
-          correctAnswers: finalCorrectCount,
-          wrongAnswers: totalQuestions - finalCorrectCount,
-          playedAt: new Date().toISOString(),
-        }),
-      });
-    } catch {
-      // ignore update failures for now and keep UX moving
-    }
-  }
+      try {
+        await fetch(`/api/players/${playerId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            totalQuestions,
+            correctAnswers: finalCorrectCount,
+            wrongAnswers: finalWrongCount,
+            timeTakenSeconds,
+            playedAt: new Date().toISOString(),
+          }),
+        });
+      } catch {
+        // ignore update failures for now and keep UX moving
+      }
+    },
+    [playerId, totalQuestions]
+  );
 
   function playAudio(audioRef) {
     const sound = audioRef.current;
@@ -135,8 +158,78 @@ export default function QuestionsPage() {
     }, 220);
   }
 
+  const finishGame = useCallback(
+    async (finalCorrectCount, finalWrongCount, timedOut = false) => {
+      const elapsedMs = Math.min(TIMER_TOTAL_MS, getNowMs() - gameStartedAtRef.current);
+      const timeTakenSeconds = Math.ceil(elapsedMs / 1000);
+
+      await updatePlayerRecord(finalCorrectCount, finalWrongCount, timeTakenSeconds);
+      setCorrectCount(finalCorrectCount);
+      setWrongCount(finalWrongCount);
+
+      const total = totalQuestions;
+      const wrong = finalWrongCount;
+      const attempted = finalCorrectCount + finalWrongCount;
+      const accuracy =
+        attempted > 0 ? Math.round((finalCorrectCount / attempted) * 100) : 0;
+      const isPerfect = finalCorrectCount === total && !timedOut;
+
+      if (isPerfect) {
+        playAudio(celebrateAudioRef);
+        burstConfetti();
+      }
+
+      setEndSummary({
+        total,
+        correct: finalCorrectCount,
+        wrong,
+        accuracy,
+        isPerfect,
+        title: timedOut
+          ? "Time's up!"
+          : isPerfect
+            ? "You made it to the leaderboard!"
+            : "Well played! Keep going.",
+        subtitle: timedOut
+          ? "45 seconds are over. Try again for a perfect run."
+          : isPerfect
+            ? "Outstanding run. Perfect score achieved."
+            : "Great effort. Restart and beat your score.",
+      });
+    },
+    [totalQuestions, updatePlayerRecord]
+  );
+
+  useEffect(() => {
+    if (endSummary) {
+      return undefined;
+    }
+
+    const tick = () => {
+      const elapsedMs = getNowMs() - gameStartedAtRef.current;
+      const remainingMs = Math.max(0, TIMER_TOTAL_MS - elapsedMs);
+      setTimeLeftMs(remainingMs);
+
+      if (remainingMs <= 0 && !isGameFinishedRef.current) {
+        isGameFinishedRef.current = true;
+        if (feedbackTimeoutRef.current) {
+          clearTimeout(feedbackTimeoutRef.current);
+          feedbackTimeoutRef.current = null;
+        }
+        setIsLocked(false);
+        setSelectedOption(null);
+        setFeedback(null);
+        void finishGame(correctCountRef.current, wrongCountRef.current, true);
+      }
+    };
+
+    tick();
+    const intervalId = setInterval(tick, 100);
+    return () => clearInterval(intervalId);
+  }, [endSummary, finishGame]);
+
   async function handleChoice(optionIndex) {
-    if (!currentQuestion || isLocked) {
+    if (!currentQuestion || isLocked || isGameFinishedRef.current || timeLeftMs <= 0) {
       return;
     }
 
@@ -145,51 +238,43 @@ export default function QuestionsPage() {
 
     const isCorrect = optionIndex === currentQuestion.correctOptionIndex;
     const nextCorrectCount = correctCount + (isCorrect ? 1 : 0);
+    const nextWrongCount = wrongCount + (isCorrect ? 0 : 1);
 
     setFeedback(isCorrect ? "correct" : "wrong");
     playAudio(isCorrect ? correctAudioRef : wrongAudioRef);
 
-    setTimeout(async () => {
+    feedbackTimeoutRef.current = setTimeout(async () => {
+      feedbackTimeoutRef.current = null;
+      if (isGameFinishedRef.current) {
+        return;
+      }
+
       const isLast = questionIndex >= totalQuestions - 1;
 
       if (isLast) {
-        await updatePlayerRecord(nextCorrectCount);
-        setCorrectCount(nextCorrectCount);
-
-        const total = totalQuestions;
-        const wrong = total - nextCorrectCount;
-        const accuracy = Math.round((nextCorrectCount / total) * 100);
-        const isPerfect = nextCorrectCount === total;
-
-        if (isPerfect) {
-          playAudio(celebrateAudioRef);
-          burstConfetti();
-        }
-
-        setEndSummary({
-          total,
-          correct: nextCorrectCount,
-          wrong,
-          accuracy,
-          isPerfect,
-          title: isPerfect
-            ? "You made it to the leaderboard!"
-            : "Well played! Keep going.",
-          subtitle: isPerfect
-            ? "Outstanding run. Perfect score achieved."
-            : "Great effort. Restart and beat your score.",
-        });
+        isGameFinishedRef.current = true;
+        await finishGame(nextCorrectCount, nextWrongCount);
         setIsLocked(false);
         return;
       }
 
       setCorrectCount(nextCorrectCount);
+      setWrongCount(nextWrongCount);
       setQuestionIndex((prev) => prev + 1);
       setSelectedOption(null);
       setFeedback(null);
       setIsLocked(false);
     }, FEEDBACK_DELAY_MS);
   }
+
+  useEffect(
+    () => () => {
+      if (feedbackTimeoutRef.current) {
+        clearTimeout(feedbackTimeoutRef.current);
+      }
+    },
+    []
+  );
 
   if (!currentQuestion) {
     return (
@@ -230,16 +315,84 @@ export default function QuestionsPage() {
           "80%": { transform: "translateX(4px)" },
           "100%": { transform: "translateX(0)" },
         },
+        "@keyframes timerPulse": {
+          "0%, 100%": { transform: "scale(1)" },
+          "50%": { transform: "scale(1.05)" },
+        },
+        "@keyframes timerUrgentGlow": {
+          "0%, 100%": { boxShadow: "0 0 0 0 rgba(255, 80, 80, 0.45)" },
+          "50%": { boxShadow: "0 0 0 10px rgba(255, 80, 80, 0)" },
+        },
       }}
     >
       <Box
         sx={{
+          position: "relative",
           display: "flex",
           alignItems: "flex-start",
           justifyContent: "space-between",
           flexShrink: 0,
         }}
       >
+        <Box
+          sx={{
+            position: "fixed",
+            top: { xs: 8, sm: 10 },
+            left: 0,
+            width: "100vw",
+            display: "flex",
+            justifyContent: "center",
+            pointerEvents: "none",
+            zIndex: 40,
+          }}
+        >
+          <Box
+            sx={{
+              px: { xs: 1.4, sm: 2.4 },
+              py: { xs: 0.5, sm: 0.7 },
+              borderRadius: "999px",
+              border: timeLeftMs <= 10_000 ? "1px solid #ff7c7c" : "1px solid #6ed4ff",
+              background:
+                timeLeftMs <= 10_000
+                  ? "linear-gradient(180deg, rgba(88, 24, 37, 0.92), rgba(62, 16, 26, 0.95))"
+                  : "linear-gradient(180deg, rgba(14, 74, 146, 0.9), rgba(8, 43, 108, 0.95))",
+              animation:
+                timeLeftMs <= 10_000
+                  ? "timerPulse 0.7s ease-in-out infinite, timerUrgentGlow 1.2s ease-in-out infinite"
+                  : "timerPulse 1.4s ease-in-out infinite",
+              display: "flex",
+              alignItems: "flex-end",
+              gap: 0.6,
+              lineHeight: 1,
+            }}
+          >
+            <Typography
+              sx={{
+                color: "#fff",
+                fontWeight: 900,
+                fontSize: "clamp(2.2rem, 8vw, 4.4rem)",
+                letterSpacing: "-0.02em",
+                lineHeight: 0.9,
+                textShadow: "0 5px 16px rgba(0, 0, 0, 0.45)",
+              }}
+            >
+              {remainingSeconds}
+            </Typography>
+            <Typography
+              sx={{
+                color: "rgba(235, 245, 255, 0.95)",
+                fontWeight: 800,
+                fontSize: "clamp(0.85rem, 2.8vw, 1.15rem)",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                mb: 0.35,
+              }}
+            >
+              sec
+            </Typography>
+          </Box>
+        </Box>
+
         <Box sx={{ width: { xs: 120, sm: 160, md: 190 } }}>
           <Image
             src="/OXY-logo.png"
@@ -251,7 +404,7 @@ export default function QuestionsPage() {
           />
         </Box>
 
-        <Box sx={{ width: { xs: 150, sm: 190, md: 210 } }}>
+        <Box sx={{ width: { xs: 180, sm: 230, md: 260 } }}>
           <Box
             sx={{
               backgroundColor: "#0f5fbf",
@@ -272,19 +425,54 @@ export default function QuestionsPage() {
             </Typography>
           </Box>
 
-          <Box sx={{ backgroundColor: "rgba(255, 255, 255, 0.92)" }}>
-            {leaderboardRows.map((name, index) => (
+          <Box
+            sx={{
+              backgroundColor: "rgba(255, 255, 255, 0.92)",
+              maxHeight: 285,
+              overflowY: "auto",
+            }}
+          >
+            {leaders.map((entry, index) => (
               <Box
-                key={`${name}-${index}`}
+                key={`${entry.id}-${index}`}
                 sx={{
-                  borderBottom:
-                    index === leaderboardRows.length - 1
-                      ? "none"
-                      : "1px solid #0c3b81",
+                  borderBottom: index === leaders.length - 1 ? "none" : "1px solid #0c3b81",
                   py: 0.35,
                   px: 1.2,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 1,
                 }}
               >
+                <Typography
+                  sx={{
+                    textAlign: "left",
+                    color: "#0c3b81",
+                    fontWeight: 700,
+                    fontSize: { xs: "0.8rem", sm: "0.92rem" },
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {String(entry.name || "").toUpperCase()}
+                </Typography>
+                <Typography
+                  sx={{
+                    textAlign: "right",
+                    color: "#0c3b81",
+                    fontWeight: 700,
+                    fontSize: { xs: "0.8rem", sm: "0.92rem" },
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {formatSeconds(entry.timeTakenSeconds)}
+                </Typography>
+              </Box>
+            ))}
+            {leaders.length === 0 && (
+              <Box sx={{ py: 1.2, px: 1 }}>
                 <Typography
                   sx={{
                     textAlign: "center",
@@ -293,10 +481,10 @@ export default function QuestionsPage() {
                     fontSize: { xs: "0.8rem", sm: "0.92rem" },
                   }}
                 >
-                  {String(name).toUpperCase()}
+                  No players yet
                 </Typography>
               </Box>
-            ))}
+            )}
           </Box>
         </Box>
       </Box>

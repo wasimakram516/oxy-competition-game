@@ -44,6 +44,10 @@ export async function PATCH(request, { params }) {
       updates.wrongAnswers = Math.max(0, toInt(body.wrongAnswers, 0));
     }
 
+    if (body?.timeTakenSeconds !== undefined) {
+      updates.timeTakenSeconds = Math.max(0, toInt(body.timeTakenSeconds, 0));
+    }
+
     if (body?.playedAt !== undefined) {
       updates.playedAt = new Date(body.playedAt);
     }
@@ -67,6 +71,10 @@ export async function PATCH(request, { params }) {
         updates.wrongAnswers !== undefined
           ? updates.wrongAnswers
           : existing.wrongAnswers,
+      timeTakenSeconds:
+        updates.timeTakenSeconds !== undefined
+          ? updates.timeTakenSeconds
+          : existing.timeTakenSeconds,
     };
 
     if (
@@ -88,6 +96,7 @@ export async function PATCH(request, { params }) {
       totalQuestions: existing.totalQuestions,
       correctAnswers: existing.correctAnswers,
       wrongAnswers: existing.wrongAnswers,
+      timeTakenSeconds: existing.timeTakenSeconds,
       playedAt: existing.playedAt,
     });
   } catch (error) {

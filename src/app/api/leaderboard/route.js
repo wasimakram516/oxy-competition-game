@@ -26,7 +26,7 @@ export async function GET(request) {
       : {};
 
     const players = await Player.find(filter)
-      .sort({ correctAnswers: -1, wrongAnswers: 1, playedAt: 1 })
+      .sort({ correctAnswers: -1, wrongAnswers: 1, timeTakenSeconds: 1, playedAt: 1 })
       .limit(limit)
       .lean();
 
@@ -37,6 +37,7 @@ export async function GET(request) {
       totalQuestions: player.totalQuestions,
       correctAnswers: player.correctAnswers,
       wrongAnswers: player.wrongAnswers,
+      timeTakenSeconds: player.timeTakenSeconds ?? 0,
       playedAt: player.playedAt,
       isPerfectScore:
         player.totalQuestions > 0 &&

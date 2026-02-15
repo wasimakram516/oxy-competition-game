@@ -11,12 +11,17 @@ export default function NamePage() {
   const [leaders, setLeaders] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
 
+  function formatSeconds(seconds) {
+    const safe = Number.isFinite(seconds) ? Math.max(0, Math.round(seconds)) : 0;
+    return `${safe}s`;
+  }
+
   useEffect(() => {
     let isMounted = true;
 
     async function loadLeaderboard() {
       try {
-        const response = await fetch("/api/leaderboard?onlyPerfect=true&limit=6");
+        const response = await fetch("/api/leaderboard?onlyPerfect=true&limit=50");
         const data = await response.json();
 
         if (!isMounted) {
@@ -106,7 +111,7 @@ export default function NamePage() {
           />
         </Box>
 
-        <Box sx={{ width: { xs: 150, sm: 190, md: 210 } }}>
+        <Box sx={{ width: { xs: 180, sm: 230, md: 260 } }}>
           <Box
             sx={{
               backgroundColor: "#0f5fbf",
@@ -127,28 +132,52 @@ export default function NamePage() {
             </Typography>
           </Box>
 
-          <Box sx={{ backgroundColor: "rgba(255, 255, 255, 0.92)", minHeight: 128 }}>
-            {leaders.slice(0, 6).map((entry, index) => (
+          <Box
+            sx={{
+              backgroundColor: "rgba(255, 255, 255, 0.92)",
+              maxHeight: 285,
+              overflowY: "auto",
+            }}
+          >
+            {leaders.map((entry, index) => (
               <Box
                 key={`${entry.id}-${index}`}
                 sx={{
                   borderBottom:
-                    index === Math.min(leaders.length, 6) - 1
+                    index === leaders.length - 1
                       ? "none"
                       : "1px solid #0c3b81",
                   py: 0.35,
                   px: 1.2,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 1,
                 }}
               >
                 <Typography
                   sx={{
-                    textAlign: "center",
+                    textAlign: "left",
                     color: "#0c3b81",
                     fontWeight: 700,
                     fontSize: { xs: "0.8rem", sm: "0.92rem" },
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {String(entry.name || "").toUpperCase()}
+                </Typography>
+                <Typography
+                  sx={{
+                    textAlign: "right",
+                    color: "#0c3b81",
+                    fontWeight: 700,
+                    fontSize: { xs: "0.8rem", sm: "0.92rem" },
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {formatSeconds(entry.timeTakenSeconds)}
                 </Typography>
               </Box>
             ))}
