@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
 import questions from "@/data/questions.json";
+import useInfiniteLeaderboard from "@/hooks/useInfiniteLeaderboard";
 
 const FEEDBACK_DELAY_MS = 850;
 const TIMER_TOTAL_MS = 120_000;
@@ -36,7 +37,13 @@ export default function QuestionsPage() {
       : null;
 
   const [randomizedQuestions] = useState(() => shuffleQuestions(questions));
-  const [leaders, setLeaders] = useState([]);
+  const {
+    leaders,
+    isLeadersLoading,
+    hasMoreLeaders,
+    leaderboardContainerRef,
+    handleLeaderboardScroll,
+  } = useInfiniteLeaderboard();
   const [questionIndex, setQuestionIndex] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
@@ -76,30 +83,6 @@ export default function QuestionsPage() {
   useEffect(() => {
     wrongCountRef.current = wrongCount;
   }, [wrongCount]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadLeaderboard() {
-      try {
-        const response = await fetch("/api/leaderboard?limit=50");
-        const data = await response.json();
-        if (isMounted) {
-          setLeaders(Array.isArray(data?.leaderboard) ? data.leaderboard : []);
-        }
-      } catch {
-        if (isMounted) {
-          setLeaders([]);
-        }
-      }
-    }
-
-    loadLeaderboard();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   const updatePlayerRecord = useCallback(
     async (finalCorrectCount, finalWrongCount, timeTakenSeconds) => {
@@ -424,6 +407,8 @@ export default function QuestionsPage() {
           </Box>
 
           <Box
+            ref={leaderboardContainerRef}
+            onScroll={handleLeaderboardScroll}
             sx={{
               backgroundColor: "rgba(255, 255, 255, 0.92)",
               height: 285,
@@ -493,7 +478,7 @@ export default function QuestionsPage() {
                 </Box>
               </Box>
             ))}
-            {leaders.length === 0 && (
+            {leaders.length === 0 && !isLeadersLoading && (
               <Box sx={{ py: 1.2, px: 1 }}>
                 <Typography
                   sx={{
@@ -504,6 +489,34 @@ export default function QuestionsPage() {
                   }}
                 >
                   No players yet
+                </Typography>
+              </Box>
+            )}
+            {isLeadersLoading && (
+              <Box sx={{ py: 0.9, px: 1 }}>
+                <Typography
+                  sx={{
+                    textAlign: "center",
+                    color: "#0f5fbf",
+                    fontWeight: 700,
+                    fontSize: { xs: "0.76rem", sm: "0.86rem" },
+                  }}
+                >
+                  Loading more...
+                </Typography>
+              </Box>
+            )}
+            {!hasMoreLeaders && leaders.length > 0 && (
+              <Box sx={{ py: 0.8, px: 1 }}>
+                <Typography
+                  sx={{
+                    textAlign: "center",
+                    color: "#3a5b89",
+                    fontWeight: 600,
+                    fontSize: { xs: "0.72rem", sm: "0.8rem" },
+                  }}
+                >
+                  End of leaderboard
                 </Typography>
               </Box>
             )}

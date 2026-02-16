@@ -1,47 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Box, Typography } from "@mui/material";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import useInfiniteLeaderboard from "@/hooks/useInfiniteLeaderboard";
 
 export default function NamePage() {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [leaders, setLeaders] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
+  const {
+    leaders,
+    isLeadersLoading,
+    hasMoreLeaders,
+    leaderboardContainerRef,
+    handleLeaderboardScroll,
+  } = useInfiniteLeaderboard();
 
   function formatSeconds(seconds) {
     const safe = Number.isFinite(seconds) ? Math.max(0, Math.round(seconds)) : 0;
     return `${safe}s`;
   }
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadLeaderboard() {
-      try {
-        const response = await fetch("/api/leaderboard?limit=50");
-        const data = await response.json();
-
-        if (!isMounted) {
-          return;
-        }
-
-        setLeaders(Array.isArray(data?.leaderboard) ? data.leaderboard : []);
-      } catch {
-        if (isMounted) {
-          setLeaders([]);
-        }
-      }
-    }
-
-    loadLeaderboard();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   const handleStartGame = async () => {
     const trimmedName = name.trim();
@@ -135,6 +115,8 @@ export default function NamePage() {
           </Box>
 
           <Box
+            ref={leaderboardContainerRef}
+            onScroll={handleLeaderboardScroll}
             sx={{
               backgroundColor: "rgba(255, 255, 255, 0.92)",
               height: 285,
@@ -207,7 +189,7 @@ export default function NamePage() {
                 </Box>
               </Box>
             ))}
-            {leaders.length === 0 && (
+            {leaders.length === 0 && !isLeadersLoading && (
               <Box sx={{ py: 1.2, px: 1 }}>
                 <Typography
                   sx={{
@@ -218,6 +200,34 @@ export default function NamePage() {
                   }}
                 >
                   No players yet
+                </Typography>
+              </Box>
+            )}
+            {isLeadersLoading && (
+              <Box sx={{ py: 0.9, px: 1 }}>
+                <Typography
+                  sx={{
+                    textAlign: "center",
+                    color: "#0f5fbf",
+                    fontWeight: 700,
+                    fontSize: { xs: "0.76rem", sm: "0.86rem" },
+                  }}
+                >
+                  Loading more...
+                </Typography>
+              </Box>
+            )}
+            {!hasMoreLeaders && leaders.length > 0 && (
+              <Box sx={{ py: 0.8, px: 1 }}>
+                <Typography
+                  sx={{
+                    textAlign: "center",
+                    color: "#3a5b89",
+                    fontWeight: 600,
+                    fontSize: { xs: "0.72rem", sm: "0.8rem" },
+                  }}
+                >
+                  End of leaderboard
                 </Typography>
               </Box>
             )}
