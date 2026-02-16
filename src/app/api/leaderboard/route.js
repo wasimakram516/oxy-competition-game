@@ -18,15 +18,17 @@ export async function GET(request) {
     const limit = Math.min(toPositiveInt(searchParams.get("limit"), 10), 50);
     const onlyPerfect = searchParams.get("onlyPerfect") === "true";
 
-    const filter = onlyPerfect
-      ? {
-          totalQuestions: { $gt: 0 },
-          $expr: { $eq: ["$correctAnswers", "$totalQuestions"] },
-        }
-      : {};
+    const filter = {
+      totalQuestions: { $gt: 0 },
+      ...(onlyPerfect
+        ? {
+            $expr: { $eq: ["$correctAnswers", "$totalQuestions"] },
+          }
+        : {}),
+    };
 
     const players = await Player.find(filter)
-      .sort({ correctAnswers: -1, wrongAnswers: 1, timeTakenSeconds: 1, playedAt: 1 })
+      .sort({ correctAnswers: -1, timeTakenSeconds: 1, playedAt: 1 })
       .limit(limit)
       .lean();
 

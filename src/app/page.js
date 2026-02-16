@@ -11,12 +11,6 @@ export default function Home() {
     localStorage.removeItem("userName");
     localStorage.removeItem("winners");
 
-    try {
-      await fetch("/api/players/reset", { method: "POST" });
-    } catch {
-      // ignore reset errors and continue navigation
-    }
-
     router.push("/name");
   };
 

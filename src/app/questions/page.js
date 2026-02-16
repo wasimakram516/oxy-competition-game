@@ -8,7 +8,7 @@ import confetti from "canvas-confetti";
 import questions from "@/data/questions.json";
 
 const FEEDBACK_DELAY_MS = 850;
-const TIMER_TOTAL_MS = 45_000;
+const TIMER_TOTAL_MS = 120_000;
 
 function shuffleQuestions(list) {
   const items = [...list];
@@ -82,7 +82,7 @@ export default function QuestionsPage() {
 
     async function loadLeaderboard() {
       try {
-        const response = await fetch("/api/leaderboard?onlyPerfect=true&limit=50");
+        const response = await fetch("/api/leaderboard?limit=50");
         const data = await response.json();
         if (isMounted) {
           setLeaders(Array.isArray(data?.leaderboard) ? data.leaderboard : []);
@@ -187,14 +187,10 @@ export default function QuestionsPage() {
         isPerfect,
         title: timedOut
           ? "Time's up!"
-          : isPerfect
-            ? "You made it to the leaderboard!"
-            : "Well played! Keep going.",
+          : "Score submitted!",
         subtitle: timedOut
-          ? "45 seconds are over. Try again for a perfect run."
-          : isPerfect
-            ? "Outstanding run. Perfect score achieved."
-            : "Great effort. Restart and beat your score.",
+          ? "45 seconds are over. Try again for a better rank."
+          : "Leaderboard updated with your score and time.",
       });
     },
     [totalQuestions, updatePlayerRecord]
@@ -298,7 +294,9 @@ export default function QuestionsPage() {
   return (
     <Box
       sx={{
-        minHeight: "100dvh",
+        height: "100vh",
+        minHeight: "100vh",
+        maxHeight: "100vh",
         backgroundImage: "url('/background.png')",
         backgroundSize: "cover",
         backgroundPosition: "center",
@@ -428,8 +426,12 @@ export default function QuestionsPage() {
           <Box
             sx={{
               backgroundColor: "rgba(255, 255, 255, 0.92)",
-              maxHeight: 285,
+              height: 285,
               overflowY: "auto",
+              overflowX: "hidden",
+              WebkitOverflowScrolling: "touch",
+              overscrollBehaviorY: "contain",
+              scrollbarWidth: "thin",
             }}
           >
             {leaders.map((entry, index) => (
@@ -454,21 +456,41 @@ export default function QuestionsPage() {
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
+                    flex: 1,
                   }}
                 >
                   {String(entry.name || "").toUpperCase()}
                 </Typography>
-                <Typography
-                  sx={{
-                    textAlign: "right",
-                    color: "#0c3b81",
-                    fontWeight: 700,
-                    fontSize: { xs: "0.8rem", sm: "0.92rem" },
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {formatSeconds(entry.timeTakenSeconds)}
-                </Typography>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.6, flexShrink: 0 }}>
+                  <Typography
+                    sx={{
+                      color: "#0f5fbf",
+                      fontWeight: 800,
+                      fontSize: { xs: "0.72rem", sm: "0.8rem" },
+                      px: 0.7,
+                      py: 0.2,
+                      borderRadius: "999px",
+                      backgroundColor: "rgba(15, 95, 191, 0.12)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {entry.correctAnswers}/{entry.totalQuestions}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      color: "#aa2a44",
+                      fontWeight: 800,
+                      fontSize: { xs: "0.72rem", sm: "0.8rem" },
+                      px: 0.7,
+                      py: 0.2,
+                      borderRadius: "999px",
+                      backgroundColor: "rgba(170, 42, 68, 0.12)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {formatSeconds(entry.timeTakenSeconds)}
+                  </Typography>
+                </Box>
               </Box>
             ))}
             {leaders.length === 0 && (
